@@ -9,23 +9,23 @@ import (
 	"github.com/gorilla/context"
 )
 
-// Options ...
+// Options to configure the middleware
 type Options struct {
 	Endpoint   string
 	ContextKey string
 }
 
-// Auth0Middleware ...
+// Auth0Middleware is a http.Handler, so you can use it with
+// the standard libs or negroni aswell.
 type Auth0Middleware struct {
 	Options Options
 }
 
-// Auth0Body ...
-type Auth0Body struct {
+type auth0Body struct {
 	Token string `json:"id_token"`
 }
 
-// TokenInfo ...
+// TokenInfo is the response body of auth0 after you call /tokeninfo.
 type TokenInfo struct {
 	UserID        string `json:"user_id"`
 	Email         string `json:"email"`
@@ -36,7 +36,7 @@ type TokenInfo struct {
 	Name          string `json:"name"`
 }
 
-// New ...
+// New creates a new instance of the Aut0Middleware with the given configurations
 func New(options Options) *Auth0Middleware {
 	auth0Middleware := new(Auth0Middleware)
 	auth0Middleware.Options = options
@@ -56,12 +56,15 @@ func (c *Auth0Middleware) ServeHTTP(rw http.ResponseWriter, r *http.Request, nex
 	}
 
 	// Ask the auth0 server if the token is valid and retrieve the user
-	body := Auth0Body{
+	body := auth0Body{
 		Token: authToken,
 	}
 	buffer := new(bytes.Buffer)
 	json.NewEncoder(buffer).Encode(body)
-	response, _ := http.Post(c.Options.Endpoint+"/tokeninfo", "application/json; charset=utf-8", buffer)
+	response, httpError := http.Post(c.Options.Endpoint+"/tokeninfo", "application/json; charset=utf-8", buffer)
+	if httpError != nil {
+		http.Error(rw, "Could not request auth service", http.StatusBadGateway)
+	}
 
 	// Check if an error occurred
 	if response.StatusCode != 200 {
